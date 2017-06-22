@@ -79,8 +79,6 @@ namespace PepeAuto
             if (acceptingProcs)
                 SortProcList();
 
-            ThreadPool.SetMaxThreads(16, 16);
-
             List<ThreadPoolQueue.ThreadPoolResult<Tuple<IList<Uri>, IList<Uri>>>>
                 procQueue = new List<ThreadPoolQueue.ThreadPoolResult<Tuple<IList<Uri>, IList<Uri>>>>();
 

@@ -7,18 +7,45 @@ namespace PepeAuto
 {
     public class AwesomiumLinkProc
     {
+        public static Thread AwesomiumThread;
+
         static AwesomiumLinkProc()
         {
-            
+            StartAweThread();
+        }
+
+        public static void StartAweThread()
+        {
+            ManualResetEvent mre = new ManualResetEvent(false);
+
+            AwesomiumThread = new Thread(() =>
+            {
+                WebCore.Initialize(new WebConfig() { LogLevel = LogLevel.Verbose });
+                WebCore.Run((send, e) =>
+                {
+                    Console.WriteLine("Awesomium Running");
+                    mre.Set();
+                });
+            });
+            AwesomiumThread.Start();
+
+            mre.WaitOne();
+        }
+
+        public static void KillAweThread()
+        {
+            WebCore.Shutdown();
+            AwesomiumThread.Join();
+            Console.WriteLine("Awesomium Shutdown");
         }
 
         public AwesomiumLinkProc(LinkProcessor lp, int priority=0): this()
         {
             RegisterUriProcessor(lp, priority);
         }
+
         public AwesomiumLinkProc()
         {
-            WebCore.Initialize(new WebConfig() { LogLevel = LogLevel.Verbose });
         }
 
         public void RegisterUriProcessor(LinkProcessor lp, int priority=0)
@@ -32,18 +59,29 @@ namespace PepeAuto
 
         protected Tuple<IList<Uri>, IList<Uri>> UriProcessor(Uri toProc)
         {
+            Console.WriteLine("Queueing work for '" + toProc.ToString() + "'");
+
             List<Uri> uriOut = new List<Uri>();
             List<Uri> imgOut = new List<Uri>();
 
-            ManualResetEvent revent = new ManualResetEvent(false);
+            ManualResetEvent MethodDone = new ManualResetEvent(false);
 
-            using (var webv = WebCore.CreateWebView(1280, 720))
+            WebView webv = null;
+
+            WebCore.QueueWork(() =>
             {
+                webv = WebCore.CreateWebView(1280, 720);
 
                 webv.Source = toProc;
 
-                using (JSObject jsobj = webv.CreateGlobalJavascriptObject("UriProcessor"))
+                webv.DocumentReady += (send, arg) =>
                 {
+                    if (!webv.HasTitle)
+                        return;
+                    Console.WriteLine("Processing '" + toProc.ToString() + "'");
+
+                    // For some reason this doesnt work
+                    /*JSObject jsobj = webv.ExecuteJavascriptWithResult("window");
 
                     jsobj.Bind("ReturnImages", (sender, e) =>
                     {
@@ -81,49 +119,78 @@ namespace PepeAuto
 
                         return JSValue.Undefined;
                     });
-                    jsobj.Bind("MarkDone", (sender, e) =>
-                    {
-                        revent.Set();
 
-                        return JSValue.Undefined;
-                    });
-                }
-
-                string JScript =
-    @"
-
-document.addEventHandler(""load"", function(){
+                    string JScript =
+@"
+window.RunLinkproc = function() {
     // Load all links
     var atags = document.querySelectorAll(""a"");
     var linkarray = [];
     atags.forEach(function(e,i,a) {
         linkarray.push(e.href);
     });
-
     // Load all images
     var imgtags = document.querySelectorAll(""img"");
     var imarray = [];
     imgtags.forEach(function(e,i,a) {
         imarray.push(e.src);
     });
-
     // Push to C#
-    UriProcessor.ReturnUris(linkarray);
-    UriProcessor.ReturnImages(imarray);
-    UriProcessor.MarkDone();
-});
+    window.ReturnUris(linkarray);
+    window.ReturnImages(imarray);
 
+    return [linkarray, imarray];
+};
 ";
 
-                webv.ExecuteJavascriptWithResult(JScript);
+                    var outp = webv.ExecuteJavascriptWithResult(JScript);
+                    var out2 = jsobj.Invoke("RunLinkproc");
+                    var out3 = webv.ExecuteJavascriptWithResult("window.RunLinkproc()");*/
+                    JSObject out4 = webv.ExecuteJavascriptWithResult(@"document.querySelectorAll(""a"")");
 
-                
+                    foreach (var v in out4)
+                    {
+                        if (!int.TryParse(v, out int n)) continue;
 
-            }
+                        var v2 = ((JSObject)out4[v]);
+                        var href = v2.GetPropertyDescriptor("href");
 
-            revent.WaitOne();
+                        string v3 = href.Value;
+                        if (v3 == "") continue;
+                        Uri uri = new Uri(v3);
+                        uriOut.Add(uri);
+                    }
 
-            return new Tuple<IList<Uri>, IList<Uri>>(new List<Uri>() { toProc }, new List<Uri>() { toProc });
+                    JSObject out5 = webv.ExecuteJavascriptWithResult(@"document.querySelectorAll(""img"")");
+
+                    foreach (var v in out5)
+                    {
+                        if (!int.TryParse(v, out int n)) continue;
+
+                        var v2 = ((JSObject)out5[v]);
+                        var src = v2.GetPropertyDescriptor("src");
+
+                        string v3 = src.Value;
+                        if (v3 == "") continue;
+                        Uri uri = new Uri(v3);
+                        imgOut.Add(uri);
+                    }
+
+                    MethodDone.Set();
+                };
+            });
+            
+            MethodDone.WaitOne();
+            MethodDone.Reset();
+
+            WebCore.QueueWork(() =>
+            {
+                webv.Dispose();
+                MethodDone.Set();
+            });
+            MethodDone.WaitOne();
+
+            return new Tuple<IList<Uri>, IList<Uri>>(uriOut, imgOut);
         }
     }
 }
