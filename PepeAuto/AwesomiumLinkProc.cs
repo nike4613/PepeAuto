@@ -80,6 +80,7 @@ namespace PepeAuto
                         return;
                     Console.WriteLine("Processing '" + toProc.ToString() + "'");
 
+                    #region Nowork
                     // For some reason this doesnt work
                     /*JSObject jsobj = webv.ExecuteJavascriptWithResult("window");
 
@@ -146,6 +147,8 @@ window.RunLinkproc = function() {
                     var outp = webv.ExecuteJavascriptWithResult(JScript);
                     var out2 = jsobj.Invoke("RunLinkproc");
                     var out3 = webv.ExecuteJavascriptWithResult("window.RunLinkproc()");*/
+#endregion
+
                     JSObject out4 = webv.ExecuteJavascriptWithResult(@"document.querySelectorAll(""a"")");
 
                     foreach (var v in out4)
@@ -176,6 +179,8 @@ window.RunLinkproc = function() {
                         imgOut.Add(uri);
                     }
 
+                    webv.Source = new Uri("about:blank");
+
                     MethodDone.Set();
                 };
             });
@@ -186,6 +191,7 @@ window.RunLinkproc = function() {
             WebCore.QueueWork(() =>
             {
                 webv.Dispose();
+                webv = null;
                 MethodDone.Set();
             });
             MethodDone.WaitOne();

@@ -82,6 +82,7 @@ namespace PepeAuto
             List<ThreadPoolQueue.ThreadPoolResult<Tuple<IList<Uri>, IList<Uri>>>>
                 procQueue = new List<ThreadPoolQueue.ThreadPoolResult<Tuple<IList<Uri>, IList<Uri>>>>();
 
+            // Replace with better method (eats less memory)
             Dictionary<string, object> prevlyused = new Dictionary<string, object>();
 
             Action<IEnumerable<Uri>> queueEnum = (IEnumerable<Uri> uris) =>
